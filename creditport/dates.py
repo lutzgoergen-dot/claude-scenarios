@@ -49,9 +49,21 @@ def imm_schedule(start: dt.date, tenor_years: int) -> list[dt.date]:
     Returns quarterly payment dates (20th of Mar/Jun/Sep/Dec) from the
     first IMM date on or after start through tenor_years.
     """
-    dates = []
     end = dt.date(start.year + tenor_years, start.month, start.day)
+    return imm_schedule_between(start, end)
 
+
+def imm_schedule_between(start: dt.date, end: dt.date) -> list[dt.date]:
+    """Generate IMM dates (20th of Mar/Jun/Sep/Dec) strictly after start up to end (inclusive).
+
+    Args:
+        start: Start date (exclusive — first returned date is after this).
+        end: End date (inclusive).
+
+    Returns:
+        Sorted list of IMM dates in (start, end].
+    """
+    dates = []
     year = start.year
     while True:
         for m in IMM_MONTHS:
@@ -63,6 +75,28 @@ def imm_schedule(start: dt.date, tenor_years: int) -> list[dt.date]:
             dates.append(d)
         year += 1
     return dates
+
+
+def next_imm_date(after: dt.date) -> dt.date:
+    """Return the next IMM date (20th of Mar/Jun/Sep/Dec) strictly after the given date."""
+    year = after.year
+    for _ in range(2):  # check current year and next
+        for m in IMM_MONTHS:
+            d = dt.date(year, m, IMM_DAY)
+            if d > after:
+                return d
+        year += 1
+    raise ValueError(f"Could not find next IMM date after {after}")
+
+
+def standard_maturity(roll_date: dt.date, tenor_years: int = 5) -> dt.date:
+    """Compute the standard CDS index maturity from a roll date and tenor.
+
+    A 5Y index rolling on March 20, 2025 matures on June 20, 2030
+    (the next IMM date after roll_date + tenor).
+    """
+    target = dt.date(roll_date.year + tenor_years, roll_date.month, roll_date.day)
+    return next_imm_date(target - dt.timedelta(days=1))
 
 
 def year_fraction(d1: dt.date, d2: dt.date, convention: str = "ACT/360") -> float:

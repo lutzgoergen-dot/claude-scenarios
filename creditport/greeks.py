@@ -61,6 +61,7 @@ def compute_greeks_numerical(
     spread_bump: float = 1.0,
     vol_bump: float = 0.01,
     time_bump_days: int = 1,
+    maturity_date: dt.date | None = None,
 ) -> Greeks:
     """Compute greeks via bump-and-reprice.
 
@@ -76,6 +77,8 @@ def compute_greeks_numerical(
         spread_bump: Size of spread bump in bps (default 1bp).
         vol_bump: Size of vol bump (default 1 vol point = 0.01).
         time_bump_days: Days for theta calculation.
+        maturity_date: Concrete index maturity date. If None, uses
+                       option.tenor_years.
 
     Returns:
         Greeks object with all sensitivities per unit notional.
@@ -92,10 +95,16 @@ def compute_greeks_numerical(
                 intr = max(s - option.strike_bps, 0) / 10_000
             else:
                 intr = max(option.strike_bps - s, 0) / 10_000
-            rpv = compute_rpv01(s, conv.recovery_rate, discount_curve, adj_ref)
+            rpv = compute_rpv01(
+                s, conv.recovery_rate, discount_curve, adj_ref,
+                maturity_date=maturity_date,
+            )
             return intr * rpv
 
-        rpv = compute_rpv01(s, conv.recovery_rate, discount_curve, adj_ref)
+        rpv = compute_rpv01(
+            s, conv.recovery_rate, discount_curve, adj_ref,
+            maturity_date=maturity_date,
+        )
         return black_price(s, option.strike_bps, v, t, rpv, option.option_type)
 
     # Base price

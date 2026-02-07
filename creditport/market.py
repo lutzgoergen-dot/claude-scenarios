@@ -22,6 +22,7 @@ class IndexMarketData:
     vol_surface: dict[float, float] = field(default_factory=dict)
     # vol_surface: {strike_bps: implied_vol} for the relevant expiry
     # For simplicity, keyed by strike. Can extend to {(expiry, strike): vol}.
+    maturity_date: dt.date | None = None  # concrete index maturity (e.g. 2030-06-20)
 
     def get_vol(self, strike_bps: float) -> float:
         """Look up implied vol for a given strike.
@@ -111,8 +112,10 @@ class MarketData:
             - spread: float (current spread in bps)
             - strike: float (option strike in bps, optional)
             - vol: float (implied vol as decimal, optional)
+            - maturity: str (ISO date e.g. '2030-06-20', optional)
 
         If strike/vol columns are present, builds a vol surface.
+        If maturity column is present, sets the concrete maturity date.
         """
         from .conventions import INDEX_ALIASES
 
@@ -135,11 +138,22 @@ class MarketData:
                     if pd.notna(row.get("strike")) and pd.notna(row.get("vol")):
                         vol_surface[float(row["strike"])] = float(row["vol"])
 
+            # Parse maturity date if provided
+            maturity_date = None
+            if "maturity" in group.columns:
+                mat_val = group["maturity"].iloc[0]
+                if pd.notna(mat_val):
+                    if isinstance(mat_val, str):
+                        maturity_date = dt.date.fromisoformat(mat_val)
+                    elif hasattr(mat_val, "date"):
+                        maturity_date = mat_val.date()
+
             market.add_index(IndexMarketData(
                 family=family,
                 series=int(series),
                 spread_bps=float(spread),
                 vol_surface=vol_surface,
+                maturity_date=maturity_date,
             ))
 
         return market

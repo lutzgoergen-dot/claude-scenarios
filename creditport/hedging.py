@@ -78,6 +78,7 @@ def compute_delta_hedge(
         market.discount_curve,
         market.ref_date,
         tenor_years,
+        maturity_date=idx_data.maturity_date,
     )
     hedge_delta_per_unit = rpv01 / 10_000  # delta per 1bp per unit notional
 

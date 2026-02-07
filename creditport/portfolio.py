@@ -149,6 +149,7 @@ def _price_position(
             market.discount_curve,
             market.ref_date,
             pos.tenor_years,
+            maturity_date=idx_data.maturity_date,
         )
         # Mark-to-market: upfront = (spread - coupon) * RPV01
         spread_dec = idx_data.spread_bps / 10_000
@@ -182,6 +183,7 @@ def _price_position(
             vol=vol,
             discount_curve=market.discount_curve,
             ref_date=market.ref_date,
+            maturity_date=idx_data.maturity_date,
         )
 
         return PositionResult(

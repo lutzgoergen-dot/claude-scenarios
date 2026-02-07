@@ -17,7 +17,16 @@ Quick start:
 
 from .black import black_price, black_price_with_fep, implied_vol
 from .conventions import CONVENTIONS, IndexFamily, OptionType, get_convention
-from .curves import CreditCurve, DiscountCurve, compute_front_end_protection, compute_rpv01
+from .curves import (
+    CreditCurve,
+    DiscountCurve,
+    SpreadDuration,
+    compute_forward_spread,
+    compute_front_end_protection,
+    compute_rpv01,
+    compute_rpv01_forward,
+    compute_spread_duration,
+)
 from .greeks import Greeks, compute_greeks_analytical, compute_greeks_numerical
 from .hedging import apply_delta_hedge, compute_delta_hedge
 from .instruments import CreditIndex, CreditIndexOption
@@ -34,10 +43,14 @@ __all__ = [
     "black_price",
     "black_price_with_fep",
     "implied_vol",
-    # Curves
+    # Curves and duration
     "DiscountCurve",
     "CreditCurve",
+    "SpreadDuration",
     "compute_rpv01",
+    "compute_rpv01_forward",
+    "compute_spread_duration",
+    "compute_forward_spread",
     "compute_front_end_protection",
     # Conventions
     "IndexFamily",

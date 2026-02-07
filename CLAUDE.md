@@ -13,7 +13,7 @@ creditport/              # Core library (the package)
 ├── __init__.py          # Public API — all exports
 ├── conventions.py       # Index definitions: recovery rates, coupons, currencies
 ├── dates.py             # 3rd Wednesday expiry, IMM schedules, year fractions
-├── curves.py            # Discount curve, credit curve, RPV01, front-end protection
+├── curves.py            # Discount curve, credit curve, RPV01, forward RPV01, spread duration, FEP
 ├── black.py             # Black's model: pricing, implied vol, analytical greeks
 ├── instruments.py       # CreditIndex and CreditIndexOption dataclasses
 ├── parsing.py           # Position string parser ("main44 mar55p" → instrument)
@@ -26,7 +26,7 @@ creditport/              # Core library (the package)
 
 tests/                   # pytest test suite
 ├── test_black.py        # Black model: put-call parity, boundary cases, greeks signs
-├── test_curves.py       # Discount/credit curves, RPV01, front-end protection
+├── test_curves.py       # Discount/credit curves, RPV01, forward RPV01, spread duration, FEP
 ├── test_parsing.py      # Position string parsing, all index codes, edge cases
 ├── test_portfolio.py    # Portfolio pricing, greeks table structure
 └── test_scenarios.py    # Scenario engine: parallel shifts, time decay
@@ -74,10 +74,24 @@ Two methods available:
 1. **Numerical (bump-and-reprice)** — preferred for risk management. Correctly captures RPV01's spread-sensitivity. Used by `portfolio.greeks_table()`.
 2. **Analytical (closed-form Black)** — holds RPV01 constant. Faster, useful for cross-checking.
 
-### Market Data
-`MarketData` holds a snapshot: ref_date, discount curve, and per-index data (spread + vol surface). Load from CSV/Excel or build programmatically. Vol surface is keyed by strike with linear interpolation.
+### Index Maturity Dates
+`IndexMarketData.maturity_date` holds the concrete index maturity (e.g. `2031-06-20` for a 5Y iTraxx Main S44 issued March 2026). When set, all RPV01/duration calculations use the actual remaining life rather than a fixed 5Y assumption. Can be loaded from a `maturity` column in CSV data.
 
-Expected CSV columns: `index, series, spread, strike, vol`
+Helper `dates.standard_maturity(roll_date, tenor_years)` computes the standard maturity: the next IMM date on or after roll_date + tenor.
+
+### Spread Duration
+`compute_spread_duration()` returns a `SpreadDuration` dataclass with:
+- **`spot_rpv01`**: Risky annuity from ref_date to maturity (the index DV01).
+- **`forward_rpv01`**: Risky annuity from expiry to maturity (the numeraire for Black's formula).
+- **`front_rpv01`**: Risky annuity from ref_date to expiry (= spot − forward).
+- **`spot_dv01` / `forward_dv01`**: Dollar DV01 per 1bp per unit notional.
+
+The annuity decomposition: `spot = front + forward`. When the expiry falls between IMM dates, computing `front` independently via `compute_rpv01(maturity_date=expiry)` will not match because it misses the mid-period accrual. Use `SpreadDuration.front_rpv01` (= spot − forward) for consistency.
+
+### Market Data
+`MarketData` holds a snapshot: ref_date, discount curve, and per-index data (spread + vol surface + optional maturity date). Load from CSV/Excel or build programmatically. Vol surface is keyed by strike with linear interpolation.
+
+Expected CSV columns: `index, series, spread, strike, vol` (required), `maturity` (optional, ISO date e.g. `2031-06-20`)
 
 ## Development Workflow
 
@@ -139,11 +153,15 @@ hedging (← conventions, curves, instruments, market, portfolio, parsing)
 
 ### Key Formulas
 
-**RPV01:**
-`RPV01 = Σ (accrual_i × D(t_i) × Q(t_i))` over quarterly IMM dates
+**Spot RPV01 (ref_date → maturity):**
+`RPV01_spot = Σ (accrual_i × D(t_i) × Q(t_i))` over quarterly IMM dates in (ref_date, maturity]
+
+**Forward RPV01 (expiry → maturity):**
+`RPV01_fwd = Σ (accrual_i × D(t_i) × Q(t_i))` over IMM dates in (expiry, maturity]
+D and Q still measured from ref_date (spot PV of forward annuity).
 
 **Black's model (payer):**
-`V = RPV01 × [F × N(d1) − K × N(d2)]`
+`V = RPV01_fwd × [F × N(d1) − K × N(d2)]`
 where `d1 = [ln(F/K) + ½σ²T] / (σ√T)`, `d2 = d1 − σ√T`
 
 **Front-end protection:**
@@ -153,6 +171,23 @@ where `d1 = [ln(F/K) + ½σ²T] / (σ√T)`, `d2 = d1 − σ√T`
 `hedge_notional = −portfolio_delta / (RPV01 / 10000)`
 
 ## Common Tasks
+
+### Compute spread duration at a given spread
+```python
+from creditport import compute_spread_duration, DiscountCurve
+import datetime as dt
+
+sd = compute_spread_duration(
+    spread_bps=60, recovery_rate=0.40,
+    discount_curve=DiscountCurve(0.03),
+    ref_date=dt.date(2026, 2, 7),
+    maturity_date=dt.date(2031, 6, 20),
+    expiry=dt.date(2026, 6, 17),
+)
+print(f"Spot RPV01:    {sd.spot_rpv01:.4f}")
+print(f"Forward RPV01: {sd.forward_rpv01:.4f}")
+print(f"Spot DV01:     {sd.spot_dv01:.6f} per bp per unit notional")
+```
 
 ### Price a single option
 ```python
@@ -207,6 +242,8 @@ print(result.summary())
 - **Vol surface interpolation** is linear between strikes, flat extrapolation beyond the range. If only one strike is provided, that vol is used for all strikes.
 - **Monte Carlo is path-by-path repricing** — accurate but computationally expensive for large portfolios. Use `seed` for reproducibility.
 - **RPV01 depends on spread** — this is why numerical (bump-and-reprice) greeks differ from analytical greeks, especially for ITM options.
+- **Maturity date matters.** If `IndexMarketData.maturity_date` is not set, RPV01 calculations fall back to a generic 5Y tenor from ref_date. For accurate pricing of seasoned indices, always set the maturity date.
+- **Forward RPV01 ≠ spot RPV01.** For options, Black's formula uses the forward annuity (expiry → maturity), not the full spot annuity. This distinction matters more for longer-dated options.
 
 ## Testing Conventions
 
