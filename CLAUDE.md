@@ -98,14 +98,16 @@ The annuity decomposition: `spot = front + forward`. When the expiry falls betwe
 - Volatilities: percentage (69.75 = 69.75% = 0.6975 decimal) — converted to decimal on load
 - Spreads/strikes: basis points
 
-**Curve codes** map dealer tickers to index families:
-| Code Pattern | Index |
-|-------------|-------|
-| ITXES5xx | iTraxx Main |
-| ITXEX5xx | iTraxx Crossover |
-| ITXEF5xx | iTraxx Senior Financials |
-| CDXIGxx | CDX IG |
-| CDXHYxx | CDX HY |
+**Curve codes** map dealer tickers to index families. The "5" is the tenor (5Y), digits after are the series:
+| Code Pattern | Index | Mnemonic |
+|-------------|-------|----------|
+| ITXEB5{series} | iTraxx Main | B = Broad |
+| ITXEX5{series} | iTraxx Crossover | X = Crossover |
+| ITXES5{series} | iTraxx Senior Fin | S = Senior |
+| CDXIG5{series} | CDX IG | |
+| CDXHY5{series} | CDX HY | |
+
+Example: `ITXEB544` = Main S44, `CDXIG543` = CDX IG S43
 
 New codes can be registered via `register_curve_code()`.
 

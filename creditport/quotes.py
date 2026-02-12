@@ -12,12 +12,15 @@ Quote conventions:
     - Spreads: basis points
     - Prices: per 100 notional (par = 100)
 
-Curve code mapping (extend as needed):
-    ITXES5xx  → iTraxx Main
-    ITXEX5xx  → iTraxx Crossover
-    ITXEF5xx  → iTraxx Senior Financials
-    CDXIG5xx  → CDX IG
-    CDXHY5xx  → CDX HY
+Curve code mapping:
+    ITXEB5{series}  → iTraxx Main        (B = Broad)
+    ITXEX5{series}  → iTraxx Crossover   (X = Crossover)
+    ITXES5{series}  → iTraxx Senior Fin  (S = Senior)
+    CDXIG5{series}  → CDX IG
+    CDXHY5{series}  → CDX HY
+
+    The "5" is the tenor indicator (5Y). Series follows directly:
+    e.g. ITXEB544 = Main S44, CDXIG543 = CDX IG S43
 """
 
 from __future__ import annotations
@@ -38,9 +41,9 @@ from .conventions import INDEX_ALIASES, IndexFamily, OptionType
 
 # Regex patterns for known curve codes. Add new patterns as indices are added.
 _CURVE_PATTERNS: list[tuple[re.Pattern, str]] = [
-    (re.compile(r"^ITXES5(\d+)$", re.IGNORECASE), "main"),
-    (re.compile(r"^ITXEX5(\d+)$", re.IGNORECASE), "xover"),
-    (re.compile(r"^ITXEF5(\d+)$", re.IGNORECASE), "snrfin"),
+    (re.compile(r"^ITXEB5(\d+)$", re.IGNORECASE), "main"),      # B = Broad (Main)
+    (re.compile(r"^ITXEX5(\d+)$", re.IGNORECASE), "xover"),     # X = Crossover
+    (re.compile(r"^ITXES5(\d+)$", re.IGNORECASE), "snrfin"),    # S = Senior Financials
     (re.compile(r"^CDXIG5?(\d+)$", re.IGNORECASE), "cdxig"),
     (re.compile(r"^CDXHY5?(\d+)$", re.IGNORECASE), "cdxhy"),
 ]

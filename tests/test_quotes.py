@@ -19,7 +19,7 @@ from creditport.quotes import (
 
 class TestCurveCodeParsing:
     def test_itraxx_main(self):
-        family, series = _parse_curve_code("ITXES544")
+        family, series = _parse_curve_code("ITXEB544")
         assert family == IndexFamily.ITRAXX_MAIN
         assert series == 44
 
@@ -29,17 +29,22 @@ class TestCurveCodeParsing:
         assert series == 44
 
     def test_itraxx_snrfin(self):
-        family, series = _parse_curve_code("ITXEF544")
+        family, series = _parse_curve_code("ITXES544")
         assert family == IndexFamily.ITRAXX_SNRFIN
         assert series == 44
 
-    def test_cdx_ig(self):
+    def test_cdx_ig_with_tenor(self):
+        family, series = _parse_curve_code("CDXIG543")
+        assert family == IndexFamily.CDX_IG
+        assert series == 43
+
+    def test_cdx_ig_without_tenor(self):
         family, series = _parse_curve_code("CDXIG43")
         assert family == IndexFamily.CDX_IG
         assert series == 43
 
     def test_cdx_hy(self):
-        family, series = _parse_curve_code("CDXHY20")
+        family, series = _parse_curve_code("CDXHY520")
         assert family == IndexFamily.CDX_HY
         assert series == 20
 
