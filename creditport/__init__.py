@@ -34,6 +34,14 @@ from .market import IndexMarketData, MarketData
 from .montecarlo import MonteCarlo, MonteCarloConfig, MonteCarloResult
 from .parsing import parse_position
 from .portfolio import Portfolio
+from .quotes import (
+    OptionQuote,
+    QuoteGrid,
+    build_quote_grids,
+    load_dealer_quotes,
+    quotes_to_market_data,
+    register_curve_code,
+)
 from .scenarios import ScenarioEngine, ScenarioResult
 
 __version__ = "0.1.0"
@@ -81,4 +89,11 @@ __all__ = [
     "apply_delta_hedge",
     # Parsing
     "parse_position",
+    # Dealer quotes
+    "OptionQuote",
+    "QuoteGrid",
+    "load_dealer_quotes",
+    "build_quote_grids",
+    "quotes_to_market_data",
+    "register_curve_code",
 ]

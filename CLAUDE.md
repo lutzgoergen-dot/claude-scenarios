@@ -22,14 +22,16 @@ creditport/              # Core library (the package)
 ├── greeks.py            # Numerical (bump-and-reprice) and analytical greeks
 ├── scenarios.py         # Scenario engine: parallel shifts, 2D matrices, time decay
 ├── montecarlo.py        # Monte Carlo: GBM spread paths, P&L distribution, VaR
-└── hedging.py           # Delta hedge computation and application
+├── hedging.py           # Delta hedge computation and application
+└── quotes.py            # Dealer quote loading, multi-dealer grids, composite vol surfaces
 
 tests/                   # pytest test suite
 ├── test_black.py        # Black model: put-call parity, boundary cases, greeks signs
 ├── test_curves.py       # Discount/credit curves, RPV01, forward RPV01, spread duration, FEP
 ├── test_parsing.py      # Position string parsing, all index codes, edge cases
 ├── test_portfolio.py    # Portfolio pricing, greeks table structure
-└── test_scenarios.py    # Scenario engine: parallel shifts, time decay
+├── test_scenarios.py    # Scenario engine: parallel shifts, time decay
+└── test_quotes.py       # Dealer quote loading, curve codes, grids, composite surfaces
 
 notebooks/
 └── demo.ipynb           # Full walkthrough: load data → price → hedge → scenarios → MC
@@ -87,6 +89,32 @@ Helper `dates.standard_maturity(roll_date, tenor_years)` computes the standard m
 - **`spot_dv01` / `forward_dv01`**: Dollar DV01 per 1bp per unit notional.
 
 The annuity decomposition: `spot = front + forward`. When the expiry falls between IMM dates, computing `front` independently via `compute_rpv01(maturity_date=expiry)` will not match because it misses the mid-period accrual. Use `SpreadDuration.front_rpv01` (= spot − forward) for consistency.
+
+### Dealer Quotes
+`quotes.py` handles raw dealer option quote data (Excel/CSV) with multi-dealer support.
+
+**Quote conventions:**
+- Premiums: cents per 100 notional
+- Volatilities: percentage (69.75 = 69.75% = 0.6975 decimal) — converted to decimal on load
+- Spreads/strikes: basis points
+
+**Curve codes** map dealer tickers to index families:
+| Code Pattern | Index |
+|-------------|-------|
+| ITXES5xx | iTraxx Main |
+| ITXEX5xx | iTraxx Crossover |
+| ITXEF5xx | iTraxx Senior Financials |
+| CDXIGxx | CDX IG |
+| CDXHYxx | CDX HY |
+
+New codes can be registered via `register_curve_code()`.
+
+**Key classes:**
+- `OptionQuote`: Single dealer quote record with premiums, vols, greeks, reference levels.
+- `QuoteGrid`: Per-index grid organizing quotes by (strike, option_type, dealer). Provides `to_vol_grid()`, `to_price_grid()`, and `composite_vol_surface()`.
+- `load_dealer_quotes(path)`: Parses Excel/CSV with flexible column matching.
+- `build_quote_grids(quotes)`: Groups quotes by index, sets `common_ref_spread` (median) and `common_fwd_spreads`.
+- `quotes_to_market_data(quotes, ref_date)`: Converts quotes directly into a `MarketData` for pricing.
 
 ### Market Data
 `MarketData` holds a snapshot: ref_date, discount curve, and per-index data (spread + vol surface + optional maturity date). Load from CSV/Excel or build programmatically. Vol surface is keyed by strike with linear interpolation.
@@ -149,6 +177,8 @@ scenarios (← conventions, market, portfolio)
 montecarlo (← conventions, market, portfolio)
     ↓
 hedging (← conventions, curves, instruments, market, portfolio, parsing)
+    ↓
+quotes (← conventions, curves, market)
 ```
 
 ### Key Formulas
@@ -224,6 +254,22 @@ from creditport import apply_delta_hedge
 
 hedge = apply_delta_hedge(port, market, "main44 5y")
 print(f"Hedge notional: {hedge.hedge_notional:,.0f}")
+```
+
+### Load dealer quotes and build market data
+```python
+from creditport import load_dealer_quotes, build_quote_grids, quotes_to_market_data
+import datetime as dt
+
+quotes = load_dealer_quotes("data/dealer_quotes.xlsx")
+grids = build_quote_grids(quotes)
+grid = grids[(IndexFamily.ITRAXX_MAIN, 44)]
+
+# View multi-dealer vol grid
+print(grid.to_vol_grid(expiry=dt.date(2026, 6, 17)))
+
+# Convert to MarketData for pricing
+market = quotes_to_market_data(quotes, ref_date=dt.date(2026, 2, 12))
 ```
 
 ### Monte Carlo
