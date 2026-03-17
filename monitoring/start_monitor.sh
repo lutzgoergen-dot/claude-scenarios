@@ -24,11 +24,10 @@ nohup bash -c "
     done
 " >> "$ALL" 2>&1 &
 
-BGPID=$!
-# Give the subshell a moment to write its own PID, then overwrite with nohup PID
+# Wait briefly for the subshell to write its own PID
 sleep 0.2
-echo "$BGPID" > "$PID_FILE"
-echo "Monitor started (PID $BGPID). Checking every 15 minutes."
+PID=$(cat "$PID_FILE")
+echo "Monitor started (PID $PID). Checking every 15 minutes."
 echo "  Alerts:   $LOG"
 echo "  Full log: $ALL"
 echo "  Stop with: kill \$(cat monitoring/monitor.pid)"
