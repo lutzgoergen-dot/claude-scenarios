@@ -1,13 +1,13 @@
 #!/bin/bash
 # Cron wrapper — runs the TfL Bakerloo check and logs alerts only when issues found.
-# Scheduled to run at 07:00 and 17:00 UTC (= London GMT; adjust for BST if needed).
+# Scheduled to run at 07:00 and 17:00 London time (GMT/BST) daily.
 
 LOG=/home/user/claude-scenarios/monitoring/tfl_alerts.log
 ALL=/home/user/claude-scenarios/monitoring/tfl_all.log
 PYTHON=$(which python3 || which python)
 SCRIPT=/home/user/claude-scenarios/monitoring/check_tfl.py
 
-TIMESTAMP=$(date -u '+%Y-%m-%d %H:%M UTC')
+TIMESTAMP=$(TZ=Europe/London date '+%Y-%m-%d %H:%M %Z')
 OUTPUT=$("$PYTHON" "$SCRIPT" 2>&1)
 
 # Always append to full log

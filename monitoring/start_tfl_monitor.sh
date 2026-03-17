@@ -14,18 +14,16 @@ if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     exit 1
 fi
 
-# Run times in UTC (HH:MM)
-RUN_TIMES=("07:00" "17:00")
-
+# Run times in London time (HH:MM) — handles GMT and BST automatically
 nohup bash -c "
     echo \$\$ > '$PID_FILE'
-    echo '['\$(date -u '+%Y-%m-%d %H:%M UTC')'] TfL monitor started (runs at 07:00 and 17:00 UTC)' >> '$ALL'
+    echo '['\$(TZ=Europe/London date '+%Y-%m-%d %H:%M %Z')'] TfL monitor started (runs at 07:00 and 17:00 London time)' >> '$ALL'
 
     LAST_RUN_KEY=''
 
     while true; do
-        NOW_HHMM=\$(date -u '+%H:%M')
-        TODAY=\$(date -u '+%Y-%m-%d')
+        NOW_HHMM=\$(TZ=Europe/London date '+%H:%M')
+        TODAY=\$(TZ=Europe/London date '+%Y-%m-%d')
         RUN_KEY=\"\${TODAY}_\${NOW_HHMM}\"
 
         # Check if current time matches a scheduled run time
@@ -44,7 +42,7 @@ nohup bash -c "
 sleep 0.2
 PID=$(cat "$PID_FILE")
 echo "TfL Bakerloo monitor started (PID $PID)."
-echo "  Checks at: 07:00 and 17:00 UTC daily"
+echo "  Checks at: 07:00 and 17:00 London time (GMT/BST)"
 echo "  Alerts:    $LOG"
 echo "  Full log:  $ALL"
 echo "  Stop with: kill \$(cat monitoring/tfl_monitor.pid)"

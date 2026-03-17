@@ -26,6 +26,9 @@ import sys
 import urllib.request
 import urllib.error
 from datetime import datetime
+from zoneinfo import ZoneInfo
+
+LONDON_TZ = ZoneInfo("Europe/London")
 
 API_URL = "https://api.tfl.gov.uk/Line/bakerloo/Status"
 LINE_NAME = "Bakerloo"
@@ -75,7 +78,9 @@ def format_status(statuses: list[dict]) -> str:
 
 def main():
     quiet = "--quiet" in sys.argv
-    timestamp = datetime.utcnow().strftime("%Y-%m-%d %H:%M UTC")
+    now = datetime.now(LONDON_TZ)
+    tz_label = now.strftime("%Z")  # GMT or BST
+    timestamp = now.strftime(f"%Y-%m-%d %H:%M {tz_label}")
 
     try:
         data = fetch_status()
