@@ -15,17 +15,18 @@ if [ -f "$PID_FILE" ] && kill -0 "$(cat "$PID_FILE")" 2>/dev/null; then
     exit 1
 fi
 
-(
-    echo $$ > "$PID_FILE"
-    echo "[$(date -u '+%Y-%m-%d %H:%M UTC')] Monitor started (interval: ${INTERVAL_SECONDS}s)" >> "$ALL"
+nohup bash -c "
+    echo \$\$ > '$PID_FILE'
+    echo '[$(date -u '+%Y-%m-%d %H:%M UTC')] Monitor started (interval: ${INTERVAL_SECONDS}s)' >> '$ALL'
     while true; do
-        bash "$CHECK_SCRIPT"
-        sleep "$INTERVAL_SECONDS"
+        bash '$CHECK_SCRIPT'
+        sleep '$INTERVAL_SECONDS'
     done
-) &
+" >> "$ALL" 2>&1 &
 
 BGPID=$!
-# Overwrite PID file with actual background PID
+# Give the subshell a moment to write its own PID, then overwrite with nohup PID
+sleep 0.2
 echo "$BGPID" > "$PID_FILE"
 echo "Monitor started (PID $BGPID). Checking every 15 minutes."
 echo "  Alerts:   $LOG"
