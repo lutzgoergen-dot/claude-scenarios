@@ -5,6 +5,7 @@
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 LOG="$SCRIPT_DIR/tfl_alerts.log"
 ALL="$SCRIPT_DIR/tfl_all.log"
+HEARTBEAT="$SCRIPT_DIR/tfl_heartbeat.log"
 PID_FILE="$SCRIPT_DIR/tfl_monitor.pid"
 CHECK_SCRIPT="$SCRIPT_DIR/check_tfl_cron.sh"
 
@@ -20,11 +21,20 @@ nohup bash -c "
     echo '['\$(TZ=Europe/London date '+%Y-%m-%d %H:%M %Z')'] TfL monitor started (runs at 07:00 and 17:00 London time)' >> '$ALL'
 
     LAST_RUN_KEY=''
+    LAST_HEARTBEAT_KEY=''
 
     while true; do
         NOW_HHMM=\$(TZ=Europe/London date '+%H:%M')
         TODAY=\$(TZ=Europe/London date '+%Y-%m-%d')
         RUN_KEY=\"\${TODAY}_\${NOW_HHMM}\"
+
+        # Heartbeat every 30 minutes
+        NOW_MM=\$(TZ=Europe/London date '+%M')
+        HB_KEY=\"\${TODAY}_\${NOW_HHMM}\"
+        if ( [ \"\$NOW_MM\" = '00' ] || [ \"\$NOW_MM\" = '30' ] ) && [ \"\$HB_KEY\" != \"\$LAST_HEARTBEAT_KEY\" ]; then
+            LAST_HEARTBEAT_KEY=\"\$HB_KEY\"
+            echo \"\$(TZ=Europe/London date '+%Y-%m-%d %H:%M %Z') alive\" >> '$HEARTBEAT'
+        fi
 
         # Check if current time matches a scheduled run time
         for T in 07:00 17:00; do
