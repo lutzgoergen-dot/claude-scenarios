@@ -12,3 +12,8 @@ build/
 .env
 .venv/
 venv/
+
+# Monitoring runtime files
+monitoring/*.log
+monitoring/*.pid
+monitoring/*_cache.json
