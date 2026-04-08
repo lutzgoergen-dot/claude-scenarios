@@ -1,10 +1,13 @@
 """
 Background monitoring daemon.
 
-Runs the ISDA DC check every 15 minutes and the TfL Bakerloo check at
-07:00 and 17:00 London time. For the first WARMUP_CHECKS runs of each
-monitor, always prints a confirmation so you know it's working. After
-that, only prints if something changed.
+Schedule:
+  ISDA DC      — every 15 minutes
+  TfL Bakerloo — 07:00 and 17:00 London time
+
+Notification behaviour:
+  2026-04-09 (tomorrow)   ISDA: confirm every 4th check (~hourly); TfL: confirm both slots
+  2026-04-10+ (day after) Both monitors silent unless an alert fires
 
 Run in background:
     nohup python agents/monitor_daemon.py >> monitoring/daemon.log 2>&1 &
@@ -17,7 +20,7 @@ Stop:
 import asyncio
 import subprocess
 import sys
-from datetime import datetime
+from datetime import date, datetime, timedelta
 from pathlib import Path
 from zoneinfo import ZoneInfo
 
@@ -25,9 +28,15 @@ LONDON_TZ = ZoneInfo("Europe/London")
 REPO_ROOT = Path(__file__).parent.parent
 MONITORING_DIR = REPO_ROOT / "monitoring"
 
-ISDA_INTERVAL_SECONDS = 900   # 15 minutes
-TFL_CHECK_TIMES = {"07:00", "17:00"}  # London time (handles GMT/BST automatically)
-WARMUP_CHECKS = 3             # Always report the first N runs of each monitor
+ISDA_INTERVAL_SECONDS = 900        # 15 minutes
+TFL_CHECK_TIMES = {"07:00", "17:00"}
+
+# Dates relative to when this daemon was configured
+_CONFIGURED = date(2026, 4, 8)
+VERBOSE_DATE  = _CONFIGURED + timedelta(days=1)   # 2026-04-09: confirmations on
+SILENT_FROM   = _CONFIGURED + timedelta(days=2)   # 2026-04-10+: alerts only
+
+ISDA_CONFIRM_EVERY_N = 4           # Every 4th check ≈ 1 hour
 
 
 # ---------------------------------------------------------------------------
@@ -50,12 +59,12 @@ def run_check(script_name: str) -> tuple[bool, str]:
     return alert, output
 
 
-def now_london() -> datetime:
-    return datetime.now(LONDON_TZ)
+def today_london() -> date:
+    return datetime.now(LONDON_TZ).date()
 
 
 def stamp() -> str:
-    return now_london().strftime("%Y-%m-%d %H:%M %Z")
+    return datetime.now(LONDON_TZ).strftime("%Y-%m-%d %H:%M %Z")
 
 
 def notify(label: str, output: str, reason: str) -> None:
@@ -72,42 +81,52 @@ def notify(label: str, output: str, reason: str) -> None:
 
 async def isda_loop() -> None:
     """Check ISDA DC every 15 minutes."""
-    run_count = 0
+    daily_count = 0
+    last_count_date: date | None = None
+
     while True:
+        today = today_london()
+
+        # Reset count at midnight
+        if today != last_count_date:
+            daily_count = 0
+            last_count_date = today
+
         alert, output = run_check("check_isda.py")
-        run_count += 1
+        daily_count += 1
 
         if alert:
             notify("ISDA DC", output, "*** ALERT — new submission ***")
-        elif run_count <= WARMUP_CHECKS:
-            notify("ISDA DC", output, f"warmup check {run_count}/{WARMUP_CHECKS} — all clear")
-        # else: silent; nothing new
+        elif today == VERBOSE_DATE and daily_count % ISDA_CONFIRM_EVERY_N == 0:
+            notify("ISDA DC", output, f"hourly confirmation (check {daily_count} today) — no new submissions")
+        # else: silent
 
         await asyncio.sleep(ISDA_INTERVAL_SECONDS)
 
 
 async def tfl_loop() -> None:
     """Check TfL Bakerloo at 07:00 and 17:00 London time."""
-    run_count = 0
     last_run_key = ""
 
     while True:
-        now = now_london()
+        now = datetime.now(LONDON_TZ)
+        today = now.date()
         hhmm = now.strftime("%H:%M")
-        run_key = f"{now.date()}_{hhmm}"
+        run_key = f"{today}_{hhmm}"
 
         if hhmm in TFL_CHECK_TIMES and run_key != last_run_key:
             last_run_key = run_key
             alert, output = run_check("check_tfl.py")
-            run_count += 1
 
             if alert:
-                notify("TfL Bakerloo", output, "*** ALERT — disruption detected ***")
-            elif run_count <= WARMUP_CHECKS:
-                notify("TfL Bakerloo", output, f"warmup check {run_count}/{WARMUP_CHECKS} — good service")
-            # else: silent; good service assumed
+                slot = "morning" if hhmm == "07:00" else "afternoon"
+                notify("TfL Bakerloo", output, f"*** ALERT — disruption detected ({slot} check) ***")
+            elif today == VERBOSE_DATE:
+                slot = "morning" if hhmm == "07:00" else "afternoon"
+                notify("TfL Bakerloo", output, f"{slot} check confirmed — good service")
+            # else (2026-04-10+): silent unless alert
 
-        await asyncio.sleep(30)  # poll every 30s to catch the scheduled minute
+        await asyncio.sleep(30)
 
 
 # ---------------------------------------------------------------------------
@@ -116,9 +135,12 @@ async def tfl_loop() -> None:
 
 async def main() -> None:
     print(f"[{stamp()}] Monitoring daemon started.")
-    print(f"  ISDA DC      — every 15 min  (first {WARMUP_CHECKS} checks always reported)")
-    print(f"  TfL Bakerloo — 07:00 & 17:00 London time (first {WARMUP_CHECKS} checks always reported)")
-    print(f"  After warmup — silent unless something changes.")
+    print(f"  ISDA DC      — every 15 min")
+    print(f"    {VERBOSE_DATE}: hourly confirmation (every {ISDA_CONFIRM_EVERY_N}th check)")
+    print(f"    {SILENT_FROM}+: alerts only")
+    print(f"  TfL Bakerloo — 07:00 & 17:00 London time")
+    print(f"    {VERBOSE_DATE}: both checks confirmed")
+    print(f"    {SILENT_FROM}+: alerts only")
     sys.stdout.flush()
 
     await asyncio.gather(isda_loop(), tfl_loop())
